@@ -1,0 +1,87 @@
+import os
+import json
+import time
+import datetime
+from win10toast import ToastNotifier
+import winsound
+import tkinter as tk
+from tkinter import simpledialog, messagebox
+
+# Константы
+DATA_FILE = "tasks.json"
+ICON_PATH = "icon.ico"  # Путь к иконке для уведомлений
+
+class SmartScheduler:
+    def __init__(self):
+        self.tasks = []
+        self.load_tasks()
+        self.check_tasks()
+
+    def load_tasks(self):
+        if os.path.exists(DATA_FILE):
+            with open(DATA_FILE, "r") as f:
+                self.tasks = json.load(f)
+        else:
+            self.tasks = []
+
+    def save_tasks(self):
+        with open(DATA_FILE, "w") as f:
+            json.dump(self.tasks, f)
+
+    def add_task(self, task_text, reminder_time=None):
+        if not reminder_time:
+            # Напоминание через 1 минуту по умолчанию
+            reminder_time = (datetime.datetime.now() + datetime.timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M:%S")
+        
+        task = {
+            "text": task_text,
+            "reminder_time": reminder_time,
+            "created": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "completed": False
+        }
+        self.tasks.append(task)
+        self.save_tasks()
+        self.show_notification("Задача добавлена", f"Напоминание: {task_text}")
+
+    def check_tasks(self):
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        for task in self.tasks:
+            if not task["completed"] and task["reminder_time"] <= now:
+                self.show_notification("Напоминание", task["text"], sound=True)
+                task["completed"] = True
+                self.save_tasks()
+
+    def show_notification(self, title, message, sound=False):
+        toaster = ToastNotifier()
+        toaster.show_toast(title, message, icon_path=ICON_PATH, duration=10)
+        
+        if sound:
+            winsound.Beep(1000, 500)  # Частота 1000 Гц, длительность 500 мс
+
+    def run_gui(self):
+        root = tk.Tk()
+        root.withdraw()  # Скрываем основное окно
+
+        # Запрашиваем у пользователя новую задачу
+        task_text = simpledialog.askstring("Умный планировщик", "Введите новую задачу с напоминанием:", parent=root)
+        
+        if task_text:
+            # Запрашиваем время напоминания
+            reminder_time = simpledialog.askstring("Умный планировщик", 
+                                                 "Введите время напоминания (ДД-ММ-ГГГГ ЧЧ:ММ:СС)\n"
+                                                 "или оставьте пустым для напоминания через 1 минуту:", 
+                                                 parent=root)
+            try:
+                if reminder_time:
+                    # Парсим введенное время
+                    datetime.datetime.strptime(reminder_time, "%d-%m-%Y %H:%M:%S")
+                self.add_task(task_text, reminder_time)
+                messagebox.showinfo("Успешно", "Задача добавлена!")
+            except ValueError:
+                messagebox.showerror("Ошибка", "Неверный формат времени! Используйте ДД-ММ-ГГГГ ЧЧ:ММ:СС")
+        
+        root.destroy()
+
+if __name__ == "__main__":
+    scheduler = SmartScheduler()
+    scheduler.run_gui()
